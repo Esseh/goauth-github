@@ -1,4 +1,4 @@
-package goauth
+package github
 import(
 	"time"
 	"net/http"
