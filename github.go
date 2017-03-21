@@ -8,14 +8,20 @@ import(
 	"github.com/Esseh/goauth"
 )
 
-type GitHubToken struct {
+var Config struct {
+	Redirect string
+	ClientID string
+	SecretID string
+}
+
+type Token struct {
 	AccessToken string `json:"access_token"`
 	Scope		string `json:"scope"`
 	TokenType	string `json:"token_type"`
 	State		string
 }
 
-func (d GitHubToken)Email(req *http.Request)(GitHubEmail , error){
+func (d Token)Email(req *http.Request)(GitHubEmail , error){
 	ai := []GitHubEmail{}
 	values := make(url.Values)
 	values.Add("access_token",d.AccessToken)
@@ -23,7 +29,7 @@ func (d GitHubToken)Email(req *http.Request)(GitHubEmail , error){
 	return ai[0],err
 }
 
-func (d GitHubToken)AccountInfo(req *http.Request)(GitHubAccountInfo , error){
+func (d Token)AccountInfo(req *http.Request)(GitHubAccountInfo , error){
 	ai := GitHubAccountInfo{}
 	values := make(url.Values)
 	values.Add("access_token",d.AccessToken)
@@ -70,27 +76,18 @@ type GitHubAccountInfo struct {
 	UpdatedAt time.Time `json:"updated_at"`
 }
 
-
-//////////////////////////////////////////////////////////////////////////////////
-// Send for Github OAuth
-//////////////////////////////////////////////////////////////////////////////////	
-func GithubSend(res http.ResponseWriter, req *http.Request, redirect ,clientID string){
-	values := goauth.RequiredSend(res,req,redirect,clientID)
+func Send(res http.ResponseWriter, req *http.Request){
+	values := goauth.RequiredSend(res,req,Config.Redirect,Config.ClientID)
 	http.Redirect(res, req, fmt.Sprintf("https://github.com/login/oauth/authorize?%s",values.Encode()), 302)
 }
 
-//////////////////////////////////////////////////////////////////////////////////
-// Recieve for Github OAuth
-/// Github isn't taking my Accept: application/json
-/// So Without the ability to unmarshal this ends up way uglier than it should 
-/// be.
-//////////////////////////////////////////////////////////////////////////////////	
-func GithubRecieve(res http.ResponseWriter, req *http.Request, redirect ,clientID, secretID string, token *GitHubToken) error {
-	resp, err := goauth.RequiredRecieve(res,req,clientID,secretID,redirect,"https://github.com/login/oauth/access_token") 
-	if err != nil { return err }
+func Recieve(res http.ResponseWriter, req *http.Request) Token {
+	token := Token{}
+	resp, err := goauth.RequiredRecieve(res,req,Config.ClientID,Config.SecretID,Config.Redirect,"https://github.com/login/oauth/access_token") 
+	if err != nil { return Token{} }
 
-	err = goauth.ExtractValue(resp,token)
-	if err != nil { return err }
+	err = goauth.ExtractValue(resp,&token)
+	if err != nil { return Token{} }
 	token.State = strings.Split(req.FormValue("state"),"](|)[")[1]
-	return nil
+	return token
 }
